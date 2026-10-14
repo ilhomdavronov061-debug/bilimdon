@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilimdon — O‘qituvchi</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .top { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; font-weight: 800; z-index: 5; }
+  .pill { background: rgba(0,0,0,.3); padding: 6px 14px; border-radius: 999px; font-size: 16px; }
+
+  /* Lobby */
+  .pinbar { background: #fff; color: var(--ink); border-radius: 8px; display: flex; gap: 28px; align-items: center; padding: 14px 28px; box-shadow: 0 4px 0 rgba(0,0,0,.25); flex-wrap: wrap; justify-content: center; }
+  .pinbar small { display: block; font-weight: 700; color: var(--muted); font-size: 15px; }
+  .pinbar .url { font-weight: 800; font-size: 22px; }
+  .pinbar .pin { font-weight: 900; font-size: clamp(44px, 7vw, 76px); letter-spacing: 3px; line-height: 1; cursor: pointer; }
+  .pinbar .qr { width: 150px; height: 150px; display: block; cursor: zoom-in; image-rendering: pixelated; }
+  .pinbar .sep { width: 2px; align-self: stretch; background: #e6e6e6; }
+  .qr-big { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: grid; place-items: center; z-index: 50; cursor: zoom-out; }
+  .qr-big div { background: #fff; padding: 24px; border-radius: 12px; text-align: center; color: var(--ink); }
+  .qr-big img { width: min(70vh, 80vw); height: min(70vh, 80vw); display: block; image-rendering: pixelated; }
+  .qr-big b { display: block; font-size: 44px; font-weight: 900; letter-spacing: 3px; margin-top: 8px; }
+  .quiz-title { font-weight: 800; font-size: 20px; opacity: .95; }
+  .back-link { position: fixed; top: 12px; left: 14px; color: #fff; opacity: .7; font-weight: 700; font-size: 14px; text-decoration: none; }
+  .back-link:hover { opacity: 1; }
+  .lobby-mid { display: flex; align-items: center; gap: 18px; width: 100%; max-width: 1100px; justify-content: space-between; }
+  .count { background: rgba(0,0,0,.35); border-radius: 6px; padding: 8px 16px; font-size: 22px; font-weight: 900; }
+  .players { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 1100px; }
+  .players .pl { background: rgba(0,0,0,.35); padding: 10px 18px; border-radius: 6px; font-weight: 800; font-size: 20px; cursor: pointer; animation: pop .3s both; }
+  .players .pl:hover { text-decoration: line-through; background: rgba(226,27,60,.6); }
+  .hint { opacity: .75; font-weight: 600; font-size: 14px; }
+
+  /* Savol */
+  .qwrap { width: 100%; min-height: 100vh; display: flex; flex-direction: column; padding: 70px 18px 18px; gap: 16px; }
+  .qtext { background: #fff; color: var(--ink); border-radius: 6px; padding: 18px 24px; font-size: clamp(22px, 3vw, 38px); font-weight: 800; text-align: center; box-shadow: 0 4px 0 rgba(0,0,0,.2); }
+  .qmid { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  .timer { width: 110px; height: 110px; border-radius: 50%; background: var(--bg2); display: grid; place-items: center; font-size: 46px; font-weight: 900; flex-shrink: 0; }
+  .ans-count { text-align: center; font-weight: 800; flex-shrink: 0; width: 110px; }
+  .ans-count b { display: block; font-size: 46px; }
+  .codebox { flex: 1; background: #1e1e2e; color: #f8f8f2; border-radius: 8px; padding: 22px 28px; font-size: clamp(18px, 2.4vw, 32px); line-height: 1.45; max-width: 900px; margin: 0 auto; box-shadow: 0 4px 0 rgba(0,0,0,.3); }
+  .codebox .kw { color: #ff79c6; font-weight: 700; } .codebox .str { color: #f1fa8c; } .codebox .num { color: #bd93f9; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border-radius: 6px; font-size: clamp(18px, 2.2vw, 30px); font-weight: 800; min-height: 96px; text-align: left; box-shadow: inset 0 -5px 0 rgba(0,0,0,.25); transition: opacity .3s; }
+  .tile .shape { font-size: 42px; }
+  .tile.dim { opacity: .25; }
+  .tile .mark { margin-left: auto; font-size: 34px; }
+
+  /* Natija grafigi */
+  .chart { display: flex; gap: 24px; align-items: flex-end; justify-content: center; height: 260px; }
+  .bar { width: 110px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 6px; font-weight: 900; font-size: 26px; }
+  .bar .fill { width: 100%; border-radius: 4px 4px 0 0; min-height: 8px; transition: height .7s cubic-bezier(.2,.9,.3,1); display: flex; justify-content: center; padding-top: 8px; }
+  .bar .fill .shape { font-size: 28px; }
+  .bar.dim { opacity: .3; }
+  .explain { background: rgba(0,0,0,.3); padding: 12px 18px; border-radius: 6px; font-weight: 700; font-size: 20px; text-align: center; align-self: center; }
+
+  /* Reyting */
+  .lb { width: 100%; max-width: 820px; display: flex; flex-direction: column; gap: 10px; }
+  .lb .row { display: flex; justify-content: space-between; background: #fff; color: var(--ink); padding: 16px 24px; border-radius: 6px; font-size: 26px; font-weight: 800; animation: pop .4s both; }
+  .lb .row:first-child { background: #ffd23f; }
+  .title-band { background: #fff; color: var(--ink); padding: 12px 40px; border-radius: 6px; font-size: 36px; font-weight: 900; }
+
+  /* Shohsupa */
+  .podium { display: flex; align-items: flex-end; gap: 14px; margin-top: 30px; }
+  .step { width: 200px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: rise .9s both; }
+  .step .nm { font-weight: 900; font-size: 26px; word-break: break-word; }
+  .step .blk { width: 100%; background: var(--bg2); border-radius: 6px 6px 0 0; display: flex; flex-direction: column; align-items: center; padding-top: 16px; font-weight: 900; }
+  .step .medal { font-size: 54px; }
+  .step .sc { font-size: 20px; opacity: .9; }
+  .s1 .blk { height: 300px; background: #864cbf; } .s2 .blk { height: 220px; } .s3 .blk { height: 160px; }
+  .s1 { animation-delay: 1.6s; } .s2 { animation-delay: .9s; } .s3 { animation-delay: .2s; }
+  @keyframes rise { from { transform: translateY(120%); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .ready-num { font-size: 120px; font-weight: 900; }
+  .bar-anim { width: min(600px, 80vw); height: 14px; background: rgba(255,255,255,.2); border-radius: 99px; overflow: hidden; }
+  .bar-anim div { height: 100%; background: #fff; width: 0; }
+  .bar-anim.go div { width: 100%; transition: width 3s linear; }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+    .lobby-mid { flex-direction: column; }
+    .timer, .ans-count { width: 70px; height: 70px; font-size: 28px; }
+    .ans-count b { font-size: 28px; }
+    .qmid { flex-wrap: wrap; justify-content: center; }
+    .step { width: 30vw; } .step .nm { font-size: 16px; }
+  }
+</style>
+<script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.innerHTML = '<div style="font:600 18px system-ui,sans-serif;max-width:640px;margin:60px auto;padding:28px;background:#46178f;color:#fff;border-radius:12px;line-height:1.6">' +
+      '<h2 style="margin:0 0 12px">⚠️ Sahifa fayl sifatida ochilgan</h2>' +
+      'Bu sayt faqat server orqali ishlaydi. VS Code terminalida:<pre style="background:#1e1e2e;padding:12px;border-radius:8px;font-size:15px">uvicorn main:app --host 0.0.0.0 --port 8000</pre>' +
+      'so‘ng brauzerda oching: <b>http://localhost:8000/host</b></div>';
+  });
+}
+</script>
+</head>
+<body>
+
+<div class="top hidden" id="topbar">
+  <span class="pill" id="qcounter"></span>
+  <span class="pill">PIN: <span id="topPin"></span></span>
+</div>
+
+<!-- 1. Yuklanmoqda / xato -->
+<section class="screen" id="s-start">
+  <div class="logo">Bilimdon<span>!</span></div>
+  <div class="spinner" id="startSpin"></div>
+  <div class="err" id="startErr" style="color:#fff;font-size:18px"></div>
+  <a class="btn light" href="/host" style="text-decoration:none">← Viktorinalarim</a>
+</section>
+
+<!-- 2. Lobby -->
+<section class="screen hidden" id="s-lobby" style="justify-content:flex-start;padding-top:28px">
+  <a class="back-link" href="/host" id="lobbyBack">← Viktorinalarim</a>
+  <div class="pinbar">
+    <div><small>Telefondan kiring:</small><div class="url" id="joinUrl"></div><small style="margin-top:6px">yoki QR kodni skanerlang →</small></div>
+    <img class="qr" id="qr" alt="QR kod" title="Kattalashtirish uchun bosing">
+    <div class="sep"></div>
+    <div><small>O‘yin PIN kodi:</small><div class="pin" id="pin" title="QR kodni kattalashtirish"></div></div>
+  </div>
+  <div class="quiz-title" id="quizTitle"></div>
+  <div class="lobby-mid">
+    <div class="count">👤 <span id="pcount">0</span></div>
+    <div class="logo" style="font-size:44px">Bilimdon<span>!</span></div>
+    <button class="btn light big" id="startBtn" disabled>Boshlash</button>
+  </div>
+  <div class="players" id="players"></div>
+  <div class="credit fixed"><span class="av">EA</span><span class="tx"><small>Muallif</small><b>Ergashev Asadbek</b></span></div>
+  <p class="hint" id="waitHint">O‘yinchilar kutilmoqda… (o‘yinchini chiqarish uchun ismini bosing)</p>
+</section>
+
+<!-- 3. Tayyorlaning -->
+<section class="screen hidden" id="s-ready">
+  <span class="pill" id="readyTopic"></span>
+  <div class="title-band" id="readyQ" style="font-size:clamp(24px,3.5vw,44px);max-width:1000px"></div>
+  <div class="bar-anim" id="readyBar"><div></div></div>
+</section>
+
+<!-- 4. Savol / natija -->
+<section class="hidden" id="s-question">
+  <div class="qwrap">
+    <div class="qtext" id="qText"></div>
+    <div class="qmid">
+      <div class="timer" id="timer">20</div>
+      <div id="midContent" style="flex:1;display:flex;flex-direction:column;gap:14px;justify-content:center"></div>
+      <div class="ans-count" id="ansBox"><b id="ansCount">0</b>javob</div>
+    </div>
+    <div class="grid" id="tiles"></div>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button class="btn light" id="skipBtn">O‘tkazib yuborish</button>
+      <button class="btn light hidden" id="toLbBtn">Reyting ▸</button>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Reyting -->
+<section class="screen hidden" id="s-lb">
+  <div class="title-band">Reyting</div>
+  <div class="lb" id="lb"></div>
+  <button class="btn light big" id="nextBtn">Keyingi savol ▸</button>
+</section>
+
+<!-- 6. Shohsupa -->
+<section class="screen hidden" id="s-podium">
+  <div class="logo" style="font-size:48px">G‘oliblar 🏆</div>
+  <div class="podium" id="podium"></div>
+  <div class="lb" id="restList" style="max-width:600px;margin-top:20px"></div>
+  <div class="row-flex" style="display:flex;gap:10px">
+    <button class="btn light" id="againBtn">↻ Qayta o‘ynash</button>
+    <a class="btn light" href="/host" style="text-decoration:none">Viktorinalarim</a>
+  </div>
+</section>
+
+<div class="credit fixed hidden" id="podiumCredit"><span class="av">EA</span><span class="tx"><small>Muallif</small><b>Ergashev Asadbek</b></span></div>
+<div class="qr-big hidden" id="qrBig"><div><img id="qrBigImg" alt="QR kod"><b id="qrBigPin"></b></div></div>
+
+<script src="/static/admin.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const SCREENS = ['s-start','s-lobby','s-ready','s-question','s-lb','s-podium'];
+function show(id) { SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id)); $('topbar').classList.toggle('hidden', ['s-start','s-lobby','s-podium'].includes(id)); }
+
+function highlight(code) {
+  return esc(code)
+    .replace(/(&#39;[^&]*?&#39;)/g, '<span class="str">$1</span>')
+    .replace(/\b(SELECT|FROM|ORDER|BY|ASC|DESC|LIMIT|OFFSET|CASE|WHEN|THEN|ELSE|END|AS|NULLS|LAST|FIRST|NULL|WHERE)\b/g, '<span class="kw">$1</span>')
+    .replace(/(?<![\w#])(\d+)(?![\w;])/g, '<span class="num">$1</span>');
+}
+
+const quizId = +new URLSearchParams(location.search).get('quiz');
+const SS_KEY = 'kahoot_game_' + quizId;
+let ws, pin, hostKey, timerInt, players = [];
+
+// Sahifa yangilansa ham o'yin yo'qolmasin: PIN va kalitni sessionStorage'da saqlaymiz
+const loadSaved = () => { try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; } };
+const saveGame = () => { try { sessionStorage.setItem(SS_KEY, JSON.stringify({ pin, key: hostKey })); } catch {} };
+const clearGame = () => { try { sessionStorage.removeItem(SS_KEY); } catch {} };
+
+async function createGame() {
+  show('s-start'); $('startErr').textContent = ''; $('startSpin').classList.remove('hidden');
+  try {
+    await ensureAuth();
+    const d = await api('/api/games', { method: 'POST', body: { quiz_id: quizId } });
+    pin = d.pin; hostKey = d.key; saveGame();
+    connect();
+  } catch (e) {
+    $('startSpin').classList.add('hidden');
+    $('startErr').textContent = e.message || 'Serverga ulanib bo‘lmadi';
+  }
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const sock = new WebSocket(`${proto}://${location.host}/ws/host/${pin}?key=${encodeURIComponent(hostKey)}`);
+  ws = sock;
+  sock.onmessage = e => handle(JSON.parse(e.data));
+  sock.onclose = () => setTimeout(() => { if (pin && ws === sock) connect(); }, 1500);
+}
+const send = (action, extra = {}) => ws?.readyState === 1 && ws.send(JSON.stringify({ action, ...extra }));
+
+function setupLobby(m) {
+  const joinUrl = `${location.origin}/?pin=${m.pin}`;
+  $('pin').textContent = m.pin; $('topPin').textContent = m.pin;
+  $('joinUrl').textContent = location.host;
+  $('quizTitle').textContent = m.title + ` · ${m.count} ta savol`;
+  document.title = m.title + ' — Bilimdon';
+  const qrSrc = '/api/qr?data=' + encodeURIComponent(joinUrl);
+  $('qr').src = qrSrc; $('qrBigImg').src = qrSrc; $('qrBigPin').textContent = m.pin;
+}
+$('qr').onclick = $('pin').onclick = () => $('qrBig').classList.remove('hidden');
+$('qrBig').onclick = () => $('qrBig').classList.add('hidden');
+$('againBtn').onclick = () => { $('podiumCredit').classList.add('hidden'); clearGame(); pin = null; ws?.close(); createGame(); };
+
+function handle(m) {
+  switch (m.type) {
+    case 'hello':
+      setupLobby(m);
+      if (m.state === 'lobby') show('s-lobby');
+      else if (m.state === 'finished') { clearGame(); createGame(); }
+      else { $('startSpin').classList.remove('hidden'); $('startErr').textContent = 'O‘yinga qayta ulandingiz — keyingi bosqich kutilmoqda…'; show('s-start'); setTimeout(() => send('next'), 300); }
+      break;
+    case 'lobby':
+      players = m.players;
+      $('pcount').textContent = players.length;
+      $('players').innerHTML = players.map(n => `<div class="pl" data-n="${esc(n)}">${esc(n)}</div>`).join('');
+      $('startBtn').disabled = players.length === 0;
+      break;
+    case 'get_ready':
+      $('qcounter').textContent = `${m.index} / ${m.total}`;
+      $('readyTopic').textContent = `${m.index}-savol · ${m.topic}`;
+      $('readyQ').textContent = m.q;
+      $('readyBar').classList.remove('go'); void $('readyBar').offsetWidth;
+      show('s-ready');
+      requestAnimationFrame(() => $('readyBar').classList.add('go'));
+      break;
+    case 'question': renderQuestion(m); break;
+    case 'answer_count': $('ansCount').textContent = m.count; break;
+    case 'result': renderResult(m); break;
+    case 'leaderboard':
+      $('lb').innerHTML = m.top.map((p, i) => `<div class="row" style="animation-delay:${i*.08}s"><span>${i+1}. ${esc(p.name)}${p.streak >= 2 ? ' 🔥' + p.streak : ''}</span><span>${p.score}</span></div>`).join('') || '<p>Hali hech kim yo‘q</p>';
+      $('nextBtn').textContent = m.last ? 'Natijalar 🏆' : 'Keyingi savol ▸';
+      show('s-lb');
+      break;
+    case 'podium': renderPodium(m.top); break;
+    case 'error':
+      // eski (server qayta ishga tushgan) o'yin — yangisini yaratamiz
+      clearGame(); pin = null; ws = null; createGame(); break;
+  }
+}
+
+$('players').onclick = e => { const n = e.target.dataset?.n; if (n) send('kick', { name: n }); };
+$('startBtn').onclick = () => send('start');
+$('skipBtn').onclick = () => send('skip');
+$('toLbBtn').onclick = () => send('leaderboard');
+$('nextBtn').onclick = () => send('next');
+
+function renderQuestion(m) {
+  $('qText').textContent = m.q;
+  $('ansCount').textContent = 0;
+  $('ansBox').classList.remove('hidden');
+  $('timer').classList.remove('hidden');
+  $('midContent').innerHTML = m.code ? `<div class="codebox code">${highlight(m.code)}</div>` : '';
+  $('tiles').innerHTML = m.answers.map((a, i) =>
+    `<div class="tile c${i}"><span class="shape">${SHAPES[i]}</span><span class="${m.code_answers ? 'code' : ''}">${m.code_answers ? highlight(a) : esc(a)}</span><span class="mark"></span></div>`).join('');
+  $('skipBtn').classList.remove('hidden'); $('toLbBtn').classList.add('hidden');
+  show('s-question');
+  let t = m.time; $('timer').textContent = t;
+  clearInterval(timerInt);
+  timerInt = setInterval(() => { t = Math.max(0, t - 1); $('timer').textContent = t; if (!t) clearInterval(timerInt); }, 1000);
+}
+
+function renderResult(m) {
+  clearInterval(timerInt);
+  $('timer').classList.add('hidden'); $('ansBox').classList.add('hidden');
+  const max = Math.max(1, ...m.counts);
+  $('midContent').innerHTML =
+    `<div class="chart">${m.counts.map((c, i) =>
+      `<div class="bar ${i === m.correct ? '' : 'dim'}"><span>${i === m.correct ? '✔ ' : ''}${c}</span><div class="fill c${i}" style="height:0"><span class="shape">${SHAPES[i]}</span></div></div>`).join('')}</div>` +
+    (m.explain ? `<div class="explain">💡 ${esc(m.explain)}</div>` : '');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.chart .fill').forEach((f, i) => f.style.height = (m.counts[i] / max * 200 + 8) + 'px');
+  }));
+  document.querySelectorAll('#tiles .tile').forEach((t, i) => {
+    t.classList.toggle('dim', i !== m.correct);
+    t.querySelector('.mark').textContent = i === m.correct ? '✔' : '✖';
+  });
+  $('skipBtn').classList.add('hidden');
+  $('toLbBtn').classList.remove('hidden');
+  $('toLbBtn').textContent = m.last ? 'Yakuniy reyting ▸' : 'Reyting ▸';
+}
+
+function renderPodium(top) {
+  const medals = ['🥇','🥈','🥉'];
+  const order = [1, 0, 2];
+  $('podium').innerHTML = order.filter(i => top[i]).map(i =>
+    `<div class="step s${i+1}"><div class="nm">${esc(top[i].name)}</div><div class="blk"><span class="medal">${medals[i]}</span><span class="sc">${top[i].score} ball</span></div></div>`).join('');
+  $('restList').innerHTML = top.slice(3).map((p, i) => `<div class="row" style="animation-delay:${2+i*.1}s"><span>${i+4}. ${esc(p.name)}</span><span>${p.score}</span></div>`).join('');
+  show('s-podium');
+  $('podiumCredit').classList.remove('hidden');
+  clearGame();
+}
+
+// --- Ishga tushirish ---
+if (!quizId) {
+  $('startSpin').classList.add('hidden');
+  $('startErr').textContent = 'Viktorina tanlanmagan';
+} else {
+  const saved = loadSaved();
+  if (saved?.pin && saved?.key) { pin = saved.pin; hostKey = saved.key; connect(); }
+  else createGame();
+}
+</script>
+</body>
+</html>

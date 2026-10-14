@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#46178f">
+<title>Bilimdon</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { user-select: none; -webkit-tap-highlight-color: transparent; }
+  .bar-top { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 10px 14px; font-weight: 800; background: rgba(0,0,0,.2); z-index: 5; }
+  .bar-bot { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 12px 16px; font-weight: 800; background: #fff; color: var(--ink); font-size: 18px; z-index: 5; }
+  .bar-bot .sc { background: #333; color: #fff; padding: 4px 12px; border-radius: 4px; }
+
+  #s-q { position: fixed; inset: 46px 0 54px; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  .pq { font-weight: 800; font-size: 17px; text-align: center; padding: 4px 6px; }
+  .pcode { background: #1e1e2e; color: #f8f8f2; border-radius: 6px; padding: 10px 12px; font-size: 14px; line-height: 1.4; }
+  .pgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; min-height: 0; }
+  .pbtn { border: 0; border-radius: 6px; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 8px; font: 800 15px 'Montserrat', system-ui, sans-serif; box-shadow: inset 0 -6px 0 rgba(0,0,0,.25); cursor: pointer; word-break: break-word; }
+  .pbtn .shape { font-size: 46px; }
+  .pbtn:active { transform: scale(.97); }
+  .pbtn .code { font-size: 12px; text-align: center; }
+
+  .res-ic { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 56px; background: rgba(255,255,255,.15); }
+  .res-pts { background: rgba(0,0,0,.3); padding: 10px 22px; border-radius: 6px; font-size: 24px; font-weight: 900; }
+  .big-t { font-size: 36px; font-weight: 900; }
+  .ok-bg { background: var(--ok) !important; background-image: none !important; }
+  .bad-bg { background: var(--bad) !important; background-image: none !important; }
+</style>
+<script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.innerHTML = '<div style="font:600 18px system-ui,sans-serif;max-width:640px;margin:60px auto;padding:28px;background:#46178f;color:#fff;border-radius:12px;line-height:1.6">' +
+      '<h2 style="margin:0 0 12px">⚠️ Sahifa fayl sifatida ochilgan</h2>' +
+      'Bu sayt faqat server orqali ishlaydi. VS Code terminalida:<pre style="background:#1e1e2e;padding:12px;border-radius:8px;font-size:15px">uvicorn main:app --host 0.0.0.0 --port 8000</pre>' +
+      'so‘ng brauzerda oching: <b>http://localhost:8000/host</b></div>';
+  });
+}
+</script>
+</head>
+<body>
+
+<div class="bar-top hidden" id="topbar"><span id="pinLbl"></span><span id="qLbl"></span></div>
+
+<!-- Kirish -->
+<section class="screen" id="s-pin">
+  <div class="logo">Bilimdon<span>!</span></div>
+  <div class="box">
+    <input class="input" id="pinIn" inputmode="numeric" maxlength="6" placeholder="O‘yin PIN kodi" autocomplete="off">
+    <button class="btn" id="pinBtn">Kirish</button>
+    <div class="err" id="pinErr"></div>
+  </div>
+  <div class="credit "><span class="av">EA</span><span class="tx"><small>Muallif</small><b>Ergashev Asadbek</b></span></div>
+</section>
+
+<section class="screen hidden" id="s-name">
+  <div class="logo">Bilimdon<span>!</span></div>
+  <div id="quizName" style="font-weight:800;font-size:17px;opacity:.9;margin-top:-8px"></div>
+  <div class="box">
+    <input class="input" id="nameIn" maxlength="20" placeholder="Ismingiz" autocomplete="off">
+    <button class="btn" id="nameBtn">Tayyor, ketdik!</button>
+    <div class="err" id="nameErr"></div>
+  </div>
+</section>
+
+<!-- Kutish ekranlari -->
+<section class="screen hidden" id="s-wait">
+  <div class="big-t" id="waitTitle">Siz o‘yindasiz!</div>
+  <p style="font-weight:700;font-size:18px" id="waitText">Ismingizni ekranda ko‘ryapsizmi?</p>
+  <div class="spinner" id="waitSpin"></div>
+</section>
+
+<!-- Savol -->
+<section class="hidden" id="s-q">
+  <div class="pq" id="pq"></div>
+  <div class="pcode code hidden" id="pcode"></div>
+  <div class="pgrid" id="pgrid"></div>
+</section>
+
+<!-- Natija -->
+<section class="screen hidden" id="s-res">
+  <div class="big-t" id="resTitle"></div>
+  <div class="res-ic pop" id="resIc"></div>
+  <div style="font-weight:700" id="resStreak"></div>
+  <div class="res-pts" id="resPts"></div>
+  <div style="font-weight:700;opacity:.9" id="resRank"></div>
+</section>
+
+<!-- Yakun -->
+<section class="screen hidden" id="s-end">
+  <div style="font-size:80px" class="pop" id="endMedal"></div>
+  <div class="big-t" id="endTitle"></div>
+  <div class="res-pts" id="endScore"></div>
+  <button class="btn light" onclick="location.reload()">Yana o‘ynash</button>
+</section>
+
+<div class="bar-bot hidden" id="botbar"><span id="meName"></span><span class="sc" id="meScore">0</span></div>
+
+<script>
+const SHAPES = [
+  '<svg viewBox="0 0 32 32"><path d="M16 3 30 28H2z"/></svg>',
+  '<svg viewBox="0 0 32 32"><path d="M16 1 31 16 16 31 1 16z"/></svg>',
+  '<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="14"/></svg>',
+  '<svg viewBox="0 0 32 32"><rect x="3" y="3" width="26" height="26"/></svg>',
+];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const SCREENS = ['s-pin','s-name','s-wait','s-q','s-res','s-end'];
+function show(id, bg = '') {
+  SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
+  document.body.className = bg;
+  const inGame = !['s-pin','s-name'].includes(id);
+  $('topbar').classList.toggle('hidden', !inGame);
+  $('botbar').classList.toggle('hidden', !inGame);
+}
+function wait(title, text, spin = true) {
+  $('waitTitle').textContent = title; $('waitText').textContent = text;
+  $('waitSpin').classList.toggle('hidden', !spin); show('s-wait');
+}
+
+let pin = new URLSearchParams(location.search).get('pin') || '';
+let name = '', ws, finished = false, retry = 0;
+if (pin) {
+  // QR kod orqali kelgan — PIN avtomatik, darhol ism so'raymiz
+  $('pinIn').value = pin;
+  setTimeout(() => $('pinBtn').click(), 0);
+}
+
+$('pinIn').addEventListener('keydown', e => e.key === 'Enter' && $('pinBtn').click());
+$('nameIn').addEventListener('keydown', e => e.key === 'Enter' && $('nameBtn').click());
+
+$('pinBtn').onclick = async () => {
+  pin = $('pinIn').value.trim();
+  if (!/^\d{6}$/.test(pin)) { $('pinErr').textContent = 'PIN 6 ta raqamdan iborat'; return; }
+  const r = await fetch('/api/check/' + pin).catch(() => null);
+  if (!r) { $('pinErr').textContent = 'Serverga ulanib bo‘lmadi'; return; }
+  const d = await r.json();
+  if (!d.ok) { $('pinErr').textContent = d.error; return; }
+  $('pinErr').textContent = '';
+  $('quizName').textContent = d.title || '';
+  history.replaceState(null, '', '/?pin=' + pin);
+  show('s-name'); $('nameIn').focus();
+};
+
+$('nameBtn').onclick = () => {
+  name = $('nameIn').value.trim();
+  if (!name) { $('nameErr').textContent = 'Ism kiriting'; return; }
+  connect();
+};
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/play/${pin}?name=${encodeURIComponent(name)}`);
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onclose = () => {
+    // Telefon ekrani o'chib yonsa — avtomatik qayta ulanish
+    if (!finished && name && retry < 20 && $('s-name').classList.contains('hidden')) {
+      retry++; setTimeout(connect, 1500);
+    }
+  };
+}
+
+function handle(m) {
+  switch (m.type) {
+    case 'error':
+      if (!$('s-name').classList.contains('hidden') || !$('s-pin').classList.contains('hidden')) {
+        $('nameErr').textContent = m.msg;
+      } else { finished = true; wait('Xatolik', m.msg, false); }
+      break;
+    case 'joined':
+      retry = 0;
+      $('pinLbl').textContent = 'PIN: ' + pin; $('meName').textContent = m.name; $('meScore').textContent = m.score;
+      if (m.state === 'lobby') wait('Siz o‘yindasiz!', 'Ismingizni ekranda ko‘ryapsizmi?');
+      else wait('Qayta ulandingiz', 'Keyingi savolni kuting…');
+      break;
+    case 'kicked': finished = true; wait('Siz o‘yindan chiqarildingiz', 'O‘qituvchiga murojaat qiling', false); break;
+    case 'get_ready':
+      $('qLbl').textContent = `${m.index} / ${m.total}`;
+      wait(`${m.index}-savol`, 'Tayyorlaning!');
+      break;
+    case 'question': renderQ(m); break;
+    case 'answered': wait('Javob qabul qilindi', 'Boshqalar kutilmoqda…'); break;
+    case 'result': renderRes(m); break;
+    case 'finished': renderEnd(m); break;
+  }
+}
+
+function renderQ(m) {
+  $('pq').textContent = m.q;
+  $('pcode').classList.toggle('hidden', !m.code);
+  $('pcode').textContent = m.code || '';
+  $('pgrid').innerHTML = m.answers.map((a, i) =>
+    `<button class="pbtn c${i}" data-i="${i}"><span class="shape">${SHAPES[i]}</span><span class="${m.code_answers ? 'code' : ''}">${esc(a)}</span></button>`).join('');
+  $('pgrid').style.gridTemplateRows = m.answers.length <= 2 ? '1fr' : '1fr 1fr';
+  show('s-q');
+}
+$('pgrid').onclick = e => {
+  const b = e.target.closest('.pbtn'); if (!b) return;
+  if (navigator.vibrate) navigator.vibrate(30);
+  ws.send(JSON.stringify({ action: 'answer', choice: +b.dataset.i }));
+  $('pgrid').querySelectorAll('.pbtn').forEach(x => x.disabled = true);
+};
+
+function renderRes(m) {
+  $('meScore').textContent = m.score;
+  if (m.correct) {
+    $('resTitle').textContent = 'To‘g‘ri!'; $('resIc').textContent = '✔';
+    $('resPts').textContent = '+ ' + m.points;
+  } else {
+    $('resTitle').textContent = m.no_answer ? 'Vaqt tugadi' : 'Noto‘g‘ri'; $('resIc').textContent = '✖';
+    $('resPts').textContent = 'Keyingisida omad!';
+  }
+  $('resStreak').textContent = m.streak >= 2 ? `🔥 Ketma-ket ${m.streak} ta to‘g‘ri javob` : '';
+  $('resRank').textContent = `Siz ${m.rank}-o‘rindasiz` + (m.behind ? ` · ${m.behind}` : ' 👑');
+  $('resIc').classList.remove('pop'); void $('resIc').offsetWidth; $('resIc').classList.add('pop');
+  show('s-res', m.correct ? 'ok-bg' : 'bad-bg');
+}
+
+function renderEnd(m) {
+  finished = true;
+  const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  $('endMedal').textContent = medals[m.rank] || '🎉';
+  $('endTitle').textContent = `${m.rank}-o‘rin (${m.total_players} kishidan)`;
+  $('endScore').textContent = m.score + ' ball';
+  $('meScore').textContent = m.score;
+  show('s-end');
+}
+</script>
+</body>
+</html>

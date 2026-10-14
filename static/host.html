@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viktorinalarim — Bilimdon</title>
+<link rel="stylesheet" href="/static/style.css">
+<script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.innerHTML = '<div style="font:600 18px system-ui,sans-serif;max-width:640px;margin:60px auto;padding:28px;background:#46178f;color:#fff;border-radius:12px;line-height:1.6">' +
+      '<h2 style="margin:0 0 12px">⚠️ Sahifa fayl sifatida ochilgan</h2>' +
+      'Bu sayt faqat server orqali ishlaydi. VS Code terminalida:<pre style="background:#1e1e2e;padding:12px;border-radius:8px;font-size:15px">uvicorn main:app --host 0.0.0.0 --port 8000</pre>' +
+      'so‘ng brauzerda oching: <b>http://localhost:8000/host</b></div>';
+  });
+}
+</script>
+</head>
+<body class="admin">
+
+<header class="admin-top">
+  <div class="logo">Bilimdon<span>!</span></div>
+  <div class="grow"></div>
+  <button class="btn ghost sm" id="importBtn">📋 Matndan import</button>
+  <button class="btn primary sm" id="newBtn">＋ Yangi viktorina</button>
+</header>
+
+<main class="admin-wrap">
+  <h1>Viktorinalarim</h1>
+  <p style="color:var(--muted);font-weight:600;margin-top:4px">Har bir mavzu uchun alohida viktorina yarating, keyin "O‘ynash" tugmasi bilan darsda ishga tushiring.</p>
+  <div class="quiz-grid" id="grid"></div>
+  <div class="empty hidden" id="empty">Hali viktorina yo‘q. "＋ Yangi viktorina" tugmasini bosing.</div>
+</main>
+<footer class="admin-footer"><div class="credit dark"><span class="av">EA</span><span class="tx"><small>Muallif</small><b>Ergashev Asadbek</b></span></div></footer>
+
+<script src="/static/admin.js"></script>
+<script>
+const COVERS = ['#46178f', '#1368ce', '#e21b3c', '#26890c', '#d89e00', '#0aa3a3', '#864cbf'];
+const fmtDate = ts => new Date(ts * 1000).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+async function load() {
+  const list = await api('/api/quizzes');
+  document.getElementById('empty').classList.toggle('hidden', list.length > 0);
+  document.getElementById('grid').innerHTML = list.map(q => `
+    <div class="qcard">
+      <div class="cover" style="background:${COVERS[q.id % COVERS.length]}">
+        <h3>${esc(q.title)}</h3>
+        <div class="tags">${q.topics.slice(0, 6).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+        <span class="n">${q.count} ta savol</span>
+      </div>
+      <div class="acts">
+        <button class="btn green sm play" data-play="${q.id}" ${q.count ? '' : 'disabled'}>▶ O‘ynash</button>
+        <a class="btn ghost sm" href="/host/edit?id=${q.id}" style="text-decoration:none">✏️ Tahrirlash</a>
+        <button class="btn ghost sm" data-copy="${q.id}" title="Nusxa olish">⧉</button>
+        <button class="btn ghost sm" data-del="${q.id}" data-title="${esc(q.title)}" title="O‘chirish">🗑</button>
+      </div>
+      <div class="meta" style="padding-bottom:10px">O‘zgartirilgan: ${fmtDate(q.updated_at)}</div>
+    </div>`).join('');
+}
+
+document.getElementById('grid').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.play) location.href = '/host/game?quiz=' + b.dataset.play;
+  if (b.dataset.copy) { await api(`/api/quizzes/${b.dataset.copy}/copy`, { method: 'POST' }); toast('Nusxa yaratildi'); load(); }
+  if (b.dataset.del && confirm(`"${b.dataset.title}" viktorinasi o‘chirilsinmi? Buni qaytarib bo‘lmaydi.`)) {
+    await api('/api/quizzes/' + b.dataset.del, { method: 'DELETE' }); toast('O‘chirildi'); load();
+  }
+};
+
+document.getElementById('newBtn').onclick = async () => {
+  const { id } = await api('/api/quizzes', { method: 'POST', body: { title: 'Yangi viktorina', questions: [] } });
+  location.href = '/host/edit?id=' + id + '&new=1';
+};
+
+document.getElementById('importBtn').onclick = () => {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-bg';
+  wrap.innerHTML = `
+    <div class="modal">
+      <h2>📋 Matndan import</h2>
+      <input class="input" id="impTitle" placeholder="Viktorina nomi" style="text-align:left;font-size:17px">
+      <div class="hint">Savollarni quyidagi formatda joylang. To‘g‘ri javob oxiriga ✅ yoki * qo‘ying. Savol bilan javoblar orasidagi qatorlar SQL kod sifatida olinadi, "━━ Mavzu ━━" qatori esa mavzu nomi bo‘ladi.</div>
+      <textarea id="impText" placeholder="━━━ SELECT ━━━
+
+1. SELECT nima uchun ishlatiladi? (20s)
+A) Jadval yaratish
+B) Ma’lumot o‘qish ✅
+C) Qator o‘chirish
+D) Ma’lumot qo‘shish
+
+2. Bu so‘rov nechta ustun qaytaradi? (30s)
+SELECT ism, ball FROM talabalar;
+A) 1
+B) 2 *
+C) 4"></textarea>
+      <div class="err" id="impErr"></div>
+      <div class="row-flex" style="justify-content:flex-end">
+        <button class="btn ghost" id="impCancel">Bekor qilish</button>
+        <button class="btn primary" id="impOk">Import qilish</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelector('#impCancel').onclick = () => wrap.remove();
+  wrap.querySelector('#impText').oninput = e => {
+    const n = parseQuizText(e.target.value).length;
+    wrap.querySelector('#impErr').textContent = n ? '' : '';
+    wrap.querySelector('#impOk').textContent = n ? `Import qilish (${n} ta savol)` : 'Import qilish';
+  };
+  wrap.querySelector('#impOk').onclick = async () => {
+    const qs = parseQuizText(wrap.querySelector('#impText').value);
+    const title = wrap.querySelector('#impTitle').value.trim() || 'Import qilingan viktorina';
+    if (!qs.length) { wrap.querySelector('#impErr').textContent = 'Savol topilmadi — formatni tekshiring'; return; }
+    try {
+      const { id } = await api('/api/quizzes', { method: 'POST', body: { title, questions: qs } });
+      location.href = '/host/edit?id=' + id;
+    } catch (err) { wrap.querySelector('#impErr').textContent = err.message; }
+  };
+};
+
+ensureAuth().then(load).catch(e => toast(e.message, true));
+</script>
+</body>
+</html>

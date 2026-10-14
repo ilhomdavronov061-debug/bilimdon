@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Muharrir — Bilimdon</title>
+<link rel="stylesheet" href="/static/style.css">
+<script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.innerHTML = '<div style="font:600 18px system-ui,sans-serif;max-width:640px;margin:60px auto;padding:28px;background:#46178f;color:#fff;border-radius:12px;line-height:1.6">' +
+      '<h2 style="margin:0 0 12px">⚠️ Sahifa fayl sifatida ochilgan</h2>' +
+      'Bu sayt faqat server orqali ishlaydi. VS Code terminalida:<pre style="background:#1e1e2e;padding:12px;border-radius:8px;font-size:15px">uvicorn main:app --host 0.0.0.0 --port 8000</pre>' +
+      'so‘ng brauzerda oching: <b>http://localhost:8000/host</b></div>';
+  });
+}
+</script>
+</head>
+<body class="admin">
+
+<header class="admin-top">
+  <a href="/host" class="btn ghost sm" style="text-decoration:none" id="backBtn">← Orqaga</a>
+  <div class="logo">Bilimdon<span>!</span></div>
+  <input class="title-in" id="title" placeholder="Viktorina nomi" maxlength="120">
+  <div class="grow"></div>
+  <span id="dirty" style="font-weight:700;color:var(--muted);font-size:13px"></span>
+  <button class="btn green sm" id="playBtn">▶ O‘ynash</button>
+  <button class="btn primary sm" id="saveBtn">💾 Saqlash</button>
+</header>
+
+<div class="ed">
+  <aside class="ed-side">
+    <div id="list" style="display:contents"></div>
+    <button class="btn primary sm" id="addBtn">＋ Savol qo‘shish</button>
+  </aside>
+
+  <main class="ed-main" id="main">
+    <div class="empty" id="noQ">Savol yo‘q. Chap tomondagi "＋ Savol qo‘shish" tugmasini bosing.</div>
+    <div id="form" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+      <div class="row-flex" style="justify-content:space-between">
+        <b id="qNum" style="font-size:18px"></b>
+        <div class="row-flex">
+          <button class="btn ghost sm" id="upBtn" title="Yuqoriga">↑</button>
+          <button class="btn ghost sm" id="downBtn" title="Pastga">↓</button>
+          <button class="btn ghost sm" id="dupBtn">⧉ Nusxa</button>
+          <button class="btn ghost sm" id="delBtn" style="color:var(--red)">🗑 O‘chirish</button>
+        </div>
+      </div>
+
+      <textarea class="ed-q" id="q" rows="2" maxlength="300" placeholder="Savolni shu yerga yozing"></textarea>
+
+      <div>
+        <label>SQL kod (ixtiyoriy) — savol ostida kod shriftida ko‘rsatiladi</label>
+        <textarea class="ed-code" id="code" spellcheck="false" placeholder="SELECT ism FROM talabalar&#10;ORDER BY ball DESC LIMIT 1;"></textarea>
+      </div>
+
+      <div class="ed-opts">
+        <div><label>Mavzu</label><input class="ed-small" id="topic" list="topics" maxlength="60" placeholder="masalan: ORDER BY"><datalist id="topics"></datalist></div>
+        <div><label>Vaqt</label>
+          <select class="ed-small" id="time">
+            <option value="5">5 soniya</option><option value="10">10 soniya</option><option value="20">20 soniya</option>
+            <option value="30">30 soniya</option><option value="45">45 soniya</option><option value="60">1 daqiqa</option>
+            <option value="90">1.5 daqiqa</option><option value="120">2 daqiqa</option>
+          </select></div>
+        <div style="flex:0 0 auto;padding-bottom:10px"><label class="chk"><input type="checkbox" id="codeAns"> Javoblar — kod</label></div>
+      </div>
+
+      <div>
+        <label>Javoblar — to‘g‘risini ✓ bilan belgilang (kamida 2 ta, ko‘pi bilan 4 ta)</label>
+        <div class="ed-ans" id="answers"></div>
+      </div>
+
+      <div>
+        <label>Izoh (ixtiyoriy) — natija ekranida 💡 bilan chiqadi</label>
+        <input class="ed-small" id="explain" maxlength="300" placeholder="masalan: DESC tartibida NULL birinchi chiqadi">
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/static/admin.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const quizId = +params.get('id');
+let quiz = { title: '', questions: [] }, cur = 0, dirty = false;
+
+const blank = () => ({ topic: quiz.questions[cur]?.topic || '', q: '', code: '', answers: ['', '', '', ''], correct: -1, time: 20, code_answers: false, explain: '' });
+const norm = q => ({ topic: q.topic || '', q: q.q || '', code: q.code || '', answers: [...(q.answers || []), '', '', '', ''].slice(0, 4),
+  correct: q.correct ?? -1, time: q.time || 20, code_answers: !!q.code_answers, explain: q.explain || '' });
+
+function problems(q) {
+  const filled = q.answers.filter(a => a.trim()).length;
+  if (!q.q.trim()) return 'Savol matni yo‘q';
+  if (filled < 2) return 'Kamida 2 ta javob kerak';
+  if (q.correct < 0 || !q.answers[q.correct]?.trim()) return 'To‘g‘ri javob belgilanmagan';
+  return '';
+}
+
+function setDirty(v = true) { dirty = v; $('dirty').textContent = v ? 'Saqlanmagan o‘zgarishlar' : '✓ Saqlangan'; }
+
+function renderList() {
+  $('list').innerHTML = quiz.questions.map((q, i) => `
+    <div class="ed-item ${i === cur ? 'on' : ''} ${problems(q) ? 'bad' : ''}" data-i="${i}" title="${esc(problems(q))}">
+      <span class="num">${i + 1}</span>
+      <span><span class="tp">${esc(q.topic)}</span><span class="tx">${esc(q.q) || '<i style="color:#999">Bo‘sh savol</i>'}</span></span>
+    </div>`).join('');
+  const topics = [...new Set(quiz.questions.map(q => q.topic.trim()).filter(Boolean))];
+  $('topics').innerHTML = topics.map(t => `<option value="${esc(t)}">`).join('');
+}
+
+function renderForm() {
+  const has = quiz.questions.length > 0;
+  $('noQ').classList.toggle('hidden', has);
+  $('form').classList.toggle('hidden', !has);
+  if (!has) return;
+  const q = quiz.questions[cur];
+  $('qNum').textContent = `${cur + 1}-savol / ${quiz.questions.length}`;
+  $('q').value = q.q; $('code').value = q.code; $('topic').value = q.topic;
+  $('time').value = q.time; $('codeAns').checked = q.code_answers; $('explain').value = q.explain;
+  renderAnswers();
+}
+
+function renderAnswers() {
+  const q = quiz.questions[cur];
+  $('answers').innerHTML = q.answers.map((a, i) => `
+    <div class="ed-a c${i} ${a.trim() ? '' : 'empty'}">
+      <span class="shape">${SHAPES[i]}</span>
+      <textarea data-a="${i}" rows="2" maxlength="120" class="${q.code_answers ? 'code' : ''}" placeholder="${i < 2 ? 'Javob ' + (i + 1) : 'Javob ' + (i + 1) + ' (ixtiyoriy)'}">${esc(a)}</textarea>
+      <button class="ed-check ${q.correct === i ? 'on' : ''}" data-c="${i}" title="To‘g‘ri javob">${q.correct === i ? '✓' : ''}</button>
+    </div>`).join('');
+}
+
+// --- Maydonlar o'zgarishi ---
+const field = (id, key, cast = v => v) => $(id).addEventListener('input', e => {
+  quiz.questions[cur][key] = cast(e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+  setDirty(); renderList();
+});
+field('q', 'q'); field('code', 'code'); field('topic', 'topic'); field('explain', 'explain');
+field('time', 'time', Number);
+$('codeAns').addEventListener('change', e => { quiz.questions[cur].code_answers = e.target.checked; setDirty(); renderAnswers(); });
+
+$('answers').addEventListener('input', e => {
+  const i = e.target.dataset.a; if (i === undefined) return;
+  quiz.questions[cur].answers[+i] = e.target.value;
+  e.target.closest('.ed-a').classList.toggle('empty', !e.target.value.trim());
+  setDirty(); renderList();
+});
+$('answers').addEventListener('click', e => {
+  const b = e.target.closest('.ed-check'); if (!b) return;
+  const i = +b.dataset.c, q = quiz.questions[cur];
+  if (!q.answers[i].trim()) { toast('Avval javob matnini yozing', true); return; }
+  q.correct = i; setDirty(); renderAnswers(); renderList();
+});
+
+$('title').addEventListener('input', e => { quiz.title = e.target.value; setDirty(); });
+$('list').onclick = e => { const it = e.target.closest('.ed-item'); if (it) { cur = +it.dataset.i; renderList(); renderForm(); } };
+
+$('addBtn').onclick = () => {
+  quiz.questions.splice(cur + (quiz.questions.length ? 1 : 0), 0, blank());
+  cur = quiz.questions.length === 1 ? 0 : cur + 1;
+  setDirty(); renderList(); renderForm(); $('q').focus();
+};
+$('dupBtn').onclick = () => { quiz.questions.splice(cur + 1, 0, structuredClone(quiz.questions[cur])); cur++; setDirty(); renderList(); renderForm(); };
+$('delBtn').onclick = () => {
+  if (!confirm(`${cur + 1}-savol o‘chirilsinmi?`)) return;
+  quiz.questions.splice(cur, 1); cur = Math.max(0, Math.min(cur, quiz.questions.length - 1));
+  setDirty(); renderList(); renderForm();
+};
+const move = d => {
+  const j = cur + d; if (j < 0 || j >= quiz.questions.length) return;
+  [quiz.questions[cur], quiz.questions[j]] = [quiz.questions[j], quiz.questions[cur]];
+  cur = j; setDirty(); renderList(); renderForm();
+};
+$('upBtn').onclick = () => move(-1); $('downBtn').onclick = () => move(1);
+
+// --- Saqlash ---
+async function save() {
+  const bad = quiz.questions.findIndex(q => problems(q));
+  if (bad >= 0) {
+    cur = bad; renderList(); renderForm();
+    toast(`${bad + 1}-savol: ${problems(quiz.questions[bad])}`, true);
+    return false;
+  }
+  if (!quiz.title.trim()) { toast('Viktorina nomini kiriting', true); $('title').focus(); return false; }
+  try {
+    await api('/api/quizzes/' + quizId, { method: 'PUT', body: quiz });
+    setDirty(false); toast('Saqlandi ✓'); return true;
+  } catch (e) { toast(e.message, true); return false; }
+}
+$('saveBtn').onclick = save;
+$('playBtn').onclick = async () => {
+  if (!quiz.questions.length) { toast('Avval savol qo‘shing', true); return; }
+  if (dirty && !(await save())) return;
+  location.href = '/host/game?quiz=' + quizId;
+};
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); } });
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// --- Yuklash ---
+(async () => {
+  try {
+    await ensureAuth();
+    const d = await api('/api/quizzes/' + quizId);
+    quiz = { title: d.title, questions: d.questions.map(norm) };
+    $('title').value = quiz.title;
+    document.title = quiz.title + ' — Muharrir';
+    renderList(); renderForm(); setDirty(false); $('dirty').textContent = '';
+    if (params.get('new')) { $('title').select(); }
+  } catch (e) { toast(e.message, true); }
+})();
+</script>
+</body>
+</html>
